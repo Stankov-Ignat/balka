@@ -5,25 +5,6 @@ import matplotlib.ticker as ticker
 
 #===============================================================================================================
 
-def round_eq(eq, count=1):
-    # Если выражение число
-    if eq in RR:
-        return round(float(eq), count)
-    # Проверяем, есть ли оператор (например, +, *, и т.д.)
-    elif eq.operator() is not None:
-        # Рекурсивно обрабатываем операнды
-        return eq.operator()(*[round_eq(arg, count) for arg in eq.operands()])
-    else:
-        # Если оператора нет, возвращаем само выражение (для функций и переменных)
-        return eq
-
-def remove_deriv_delta(eq, x_list):
-    for x_ in x_list:
-        eq = eq.subs(diff(dirac_delta(x - x_),x) == 0)
-    return eq
-
-#===============================================================================================================
-
 nums = fu.Reading('data.txt')
 
 x_k = nums[0];     x_q1 = nums[1];    x_q2 = nums[2]
@@ -51,10 +32,13 @@ eq8 = heaviside(x - x_m) * (m * (x - x_m)^2/2)
 w = w_0 + theta_0 * x + 1/(E*J) * (eq1 + eq2 + eq3 + eq4 + eq5 +  eq6 + eq7 + eq8)
 
 theta = diff(w, x)
-theta = theta.subs({dirac_delta(x-x_) : 0 for x_ in [x_q1, x_r1, x_p, x_r2, x_q2, x_r3, x_m]})
+theta = theta.substitute_function(dirac_delta, lambda x: 0)
 
 M = diff(theta,x)
-M = M.subs({dirac_delta(x-x_) : 0 for x_ in [x_q1, x_r1, x_p, x_r2, x_q2, x_r3, x_m]})
+M = M.substitute_function(dirac_delta, lambda x: 0)
+
+Q = diff(M,x)
+Q = Q.substitute_function(dirac_delta, lambda x: 0)
 
 #--------------------------------------------------CONDITIONS-----------------------------------------------------
 
@@ -66,7 +50,7 @@ cond5 = M.subs(x = x_k)  == 0
 cond6 = r_k == -k * w_0                                                        # знак и-за того что при отрицательном прогибе сила должна вверх
 cond7 = theta.subs(x = x_z) == 0
 
-cond8 = r_k + r1 + r2 + r3 + r_z + (x_q2 - x_q1) * (q1 + q2)/2 == 0
+cond8 = p + r_k + r1 + r2 + r3 + r_z + (x_q2 - x_q1) * (q1 + q2)/2 == 0        # условия равновесия
 cond9 = m_0 + r1 * x_r1 + r2 * x_r2 + r3 * x_r3 + p * x_p + m + m_z + r_z * x_z + q1 * (x_q2^2 - x_q1^2) / 2 + k_tg * (x_q2^3 - x_q1^3) / 3 == 0   
 
 #--------------------------------------------------SOLUTION--------------------------------------------------------
@@ -77,20 +61,15 @@ values = {eq.lhs() : eq.rhs() for eq in solution[0]}
 
 r1, r2, r3, r_z, m_z, m_0, w_0, theta_0, r_k =  values[r1],values[r2],values[r3],values[r_z],values[m_z],values[m_0],values[w_0],values[theta_0],values[r_k]
 
-#--------------------------------------------------ПРОГИБ------------------------------------------------------------
+#--------------------------------------------------ПОДСТАНОВКА------------------------------------------------------------
 
 w = w.subs(r1=r1, r2=r2, r3=r3, r_z=r_z, m_z=m_z, m_0=m_0, w_0=w_0, theta_0=theta_0, r_k=r_k)
-#print('w = ', round_eq(w, 5), end='\n\n\n')
 
 theta = theta.subs(r1=r1, r2=r2, r3=r3, r_z=r_z, m_z=m_z, m_0=m_0, w_0=w_0, theta_0=theta_0, r_k=r_k)
-#print('theta = ', round_eq(theta, 5), end='\n\n\n')
 
 M = M.subs(r1=r1, r2=r2, r3=r3, r_z=r_z, m_z=m_z, m_0=m_0, w_0=w_0, theta_0=theta_0, r_k=r_k)
-#print('M = ', round_eq(M, 5), end='\n\n\n')
 
-Q = diff(M,x)
-Q = Q.subs({dirac_delta(x-x_) : 0 for x_ in [x_q1, x_r1, x_p, x_r2, x_q2, x_r3, x_m]})
-#print('Q = ', round_eq(Q, 5), end='\n\n\n')
+Q = Q.subs(r1=r1, r2=r2, r3=r3, r_z=r_z, m_z=m_z, m_0=m_0, w_0=w_0, theta_0=theta_0, r_k=r_k)
 
 #--------------------------------------------------GRAPHICS-----------------------------------------------------------
 
@@ -142,4 +121,4 @@ axes[2].plot(x_mesh, [theta_lambda(x_) for x_ in x_mesh]);            axes[2].se
 axes[3].plot(x_mesh, [w_lambda(x_) for x_ in x_mesh]);                axes[3].set_title('Прогиб')
 
 plt.tight_layout()
-plt.savefig('q.png')
+plt.savefig('result.png')
