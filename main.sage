@@ -1,11 +1,33 @@
 import matplotlib.pyplot as plt
 import numpy as np
-import func as fu
 import matplotlib.ticker as ticker
+
+def reading(s):
+    with open(s, 'r') as file:
+        nums = []
+        for line in file:
+            num = line.split('<==')[0].strip()
+            try:
+                num = float(num)
+                nums.append(num)
+            except ValueError:
+                print('ERROR ЧТЕНИЯ ФАЙЛА')
+    return nums
+
+def read_and_save_data(filename, headers):
+    data = {header: [] for header in headers}  # Инициализация словаря с указанными ключами
+
+    with open(filename, 'r') as file:
+        for line in file:
+            values = list(map(float, line.split()))
+            for i, value in enumerate(values):
+                data[headers[i]].append(value)
+    
+    return data
 
 #===============================================================================================================
 
-nums = fu.Reading('data.txt')
+nums = reading('data.txt')
 
 x_k = nums[0];     x_q1 = nums[1];    x_q2 = nums[2]
 x_r1 = nums[3];    x_r2 = nums[4];    x_r3 = nums[5]
@@ -71,14 +93,19 @@ M = M.subs(r1=r1, r2=r2, r3=r3, r_z=r_z, m_z=m_z, m_0=m_0, w_0=w_0, theta_0=thet
 
 Q = Q.subs(r1=r1, r2=r2, r3=r3, r_z=r_z, m_z=m_z, m_0=m_0, w_0=w_0, theta_0=theta_0, r_k=r_k)
 
-#--------------------------------------------------GRAPHICS-----------------------------------------------------------
+#--------------------------------------------------READING CPP RESULT-------------------------------------------------------
+
+headers = ['mke_mesh', 'mke_w', 'mke_theta', 'mke_moment', 'mke_q']
+mke_res = read_and_save_data('output.txt', headers)
+
+#--------------------------------------------------GRAPHICS-----------------------------------------------------------------
 
 x_mesh = np.linspace(0,25, 500)
 
-w_lambda = lambda x_ : float(w.subs(x = x_))
+w_lambda =     lambda x_ : float(w.subs(x = x_))
 theta_lambda = lambda x_: float(theta.subs(x = x_))
-M_lambda = lambda x_: float(M.subs(x = x_))
-Q_lambda = lambda x_: float(Q.subs(x = x_))
+M_lambda =     lambda x_: float(M.subs(x = x_))
+Q_lambda =     lambda x_: float(Q.subs(x = x_))
 
 w_max = max([w_lambda(x_) for x_ in x_mesh]);
 norm_q = w_max / (abs(q1) + abs(q2) + 1e-7)                                            # нормализация для распределенной нагрузки
@@ -89,9 +116,9 @@ width_max = max([r1, r2, r3, r_k, r_z]) * norm_r
 
 #--------------------------------------
 
-fig, axes = plt.subplots(4, figsize=(13, 11))
+fig, axes = plt.subplots(4, 2, figsize=(18, 11))
 
-for ax in axes:
+for ax in axes.flatten():
 
     ax.plot([0,25], [0,0], color='purple')                                             # ось x
     ax.plot([x_q1, x_q2], [q1 * norm_q, q2 * norm_q], color='blue')
@@ -113,12 +140,17 @@ for ax in axes:
     
     ax.xaxis.set_major_locator(ticker.MultipleLocator(2))
     ax.grid(which='major', linewidth=1)
-    ax.legend()
+    #ax.legend()
 
-axes[0].plot(x_mesh, [Q_lambda(x_) for x_ in x_mesh]);                axes[0].set_title('Перерезывающая сила')
-axes[1].plot(x_mesh, [E*J * M_lambda(x_) for x_ in x_mesh]);          axes[1].set_title('Момент')
-axes[2].plot(x_mesh, [theta_lambda(x_) for x_ in x_mesh]);            axes[2].set_title('Углы')
-axes[3].plot(x_mesh, [w_lambda(x_) for x_ in x_mesh]);                axes[3].set_title('Прогиб')
+axes[0, 0].plot(x_mesh, [Q_lambda(x_) for x_ in x_mesh]);                axes[0, 0].set_title('Перерезывающая сила')
+axes[1, 0].plot(x_mesh, [E*J * M_lambda(x_) for x_ in x_mesh]);          axes[1, 0].set_title('Момент')
+axes[2, 0].plot(x_mesh, [theta_lambda(x_) for x_ in x_mesh]);            axes[2, 0].set_title('Углы')
+axes[3, 0].plot(x_mesh, [w_lambda(x_) for x_ in x_mesh]);                axes[3, 0].set_title('Прогиб')
+
+axes[0, 1].plot (mke_res['mke_mesh'], mke_res['mke_q']);                 axes[0, 1].set_title('Cила')
+axes[1, 1].plot (mke_res['mke_mesh'], mke_res['mke_moment']);            axes[1, 1].set_title('Момент')
+axes[2, 1].plot (mke_res['mke_mesh'], mke_res['mke_theta']);             axes[2, 1].set_title('Углы')
+axes[3, 1].plot (mke_res['mke_mesh'], mke_res['mke_w']);                 axes[3, 1].set_title('Прогиб')
 
 plt.tight_layout()
 plt.savefig('result.png')
