@@ -25,6 +25,20 @@ def read_and_save_data(filename, headers):
     
     return data
 
+def read_numbers_to_list(filename):
+    numbers = []  # Инициализируем пустой список для чисел
+
+    with open(filename, 'r') as file:
+        for line in file:
+            try:
+                # Преобразуем строку в число с плавающей точкой и добавляем в список
+                numbers.append(float(line.strip()))
+            except ValueError:
+                # Если строка не является числом, пропускаем её
+                continue
+    
+    return numbers
+
 #===============================================================================================================
 
 nums = reading('data.txt')
@@ -53,24 +67,24 @@ eq8 = heaviside(x - x_m) * (m * (x - x_m)^2/2)
 
 w = w_0 + theta_0 * x + 1/(E*J) * (eq1 + eq2 + eq3 + eq4 + eq5 +  eq6 + eq7 + eq8)
 
-theta = diff(w, x)
-theta = theta.substitute_function(dirac_delta, lambda x: 0)
+theta = diff (w, x)
+theta = theta.substitute_function (dirac_delta, lambda x: 0)
 
-M = diff(theta,x)
-M = M.substitute_function(dirac_delta, lambda x: 0)
+M = diff (theta,x)
+M = M.substitute_function (dirac_delta, lambda x: 0)
 
-Q = diff(M,x)
-Q = Q.substitute_function(dirac_delta, lambda x: 0)
+Q = diff (M,x)
+Q = Q.substitute_function (dirac_delta, lambda x: 0)
 
 #--------------------------------------------------CONDITIONS-----------------------------------------------------
 
-cond1 = w.subs(x = x_r1) == 0
-cond2 = w.subs(x = x_r2) == 0
-cond3 = w.subs(x = x_r3) == 0
-cond4 = w.subs(x = x_z)  == 0
-cond5 = M.subs(x = x_k)  == 0
+cond1 = w.subs (x = x_r1) == 0
+cond2 = w.subs (x = x_r2) == 0
+cond3 = w.subs (x = x_r3) == 0
+cond4 = w.subs (x = x_z)  == 0
+cond5 = M.subs (x = x_k)  == 0
 cond6 = r_k == -k * w_0                                                        # знак и-за того что при отрицательном прогибе сила должна вверх
-cond7 = theta.subs(x = x_z) == 0
+cond7 = theta.subs (x = x_z) == 0
 
 cond8 = p + r_k + r1 + r2 + r3 + r_z + (x_q2 - x_q1) * (q1 + q2)/2 == 0        # условия равновесия
 cond9 = m_0 + r1 * x_r1 + r2 * x_r2 + r3 * x_r3 + p * x_p + m + m_z + r_z * x_z + q1 * (x_q2^2 - x_q1^2) / 2 + k_tg * (x_q2^3 - x_q1^3) / 3 == 0   
@@ -81,26 +95,41 @@ solution = solve([cond1, cond2, cond3, cond4, cond5, cond6, cond7, cond8, cond9]
 
 values = {eq.lhs() : eq.rhs() for eq in solution[0]}
 
-r1, r2, r3, r_z, m_z, m_0, w_0, theta_0, r_k =  values[r1],values[r2],values[r3],values[r_z],values[m_z],values[m_0],values[w_0],values[theta_0],values[r_k]
+for i, (key, value) in enumerate(values.items()):
+    if i >= 5:
+        break
+    print(f"{key}: {value.n():.6f} ", end=" ")
+print()
+
+r1, r2, r3, r_z, m_z, m_0, w_0, theta_0, r_k = values[r1],values[r2],values[r3],values[r_z],values[m_z],values[m_0],values[w_0],values[theta_0],values[r_k]
 
 #--------------------------------------------------ПОДСТАНОВКА------------------------------------------------------------
 
-w = w.subs(r1=r1, r2=r2, r3=r3, r_z=r_z, m_z=m_z, m_0=m_0, w_0=w_0, theta_0=theta_0, r_k=r_k)
+w = w.subs (r1=r1, r2=r2, r3=r3, r_z=r_z, m_z=m_z, m_0=m_0, w_0=w_0, theta_0=theta_0, r_k=r_k)
 
-theta = theta.subs(r1=r1, r2=r2, r3=r3, r_z=r_z, m_z=m_z, m_0=m_0, w_0=w_0, theta_0=theta_0, r_k=r_k)
+theta = theta.subs (r1=r1, r2=r2, r3=r3, r_z=r_z, m_z=m_z, m_0=m_0, w_0=w_0, theta_0=theta_0, r_k=r_k)
 
-M = M.subs(r1=r1, r2=r2, r3=r3, r_z=r_z, m_z=m_z, m_0=m_0, w_0=w_0, theta_0=theta_0, r_k=r_k)
+M = M.subs (r1=r1, r2=r2, r3=r3, r_z=r_z, m_z=m_z, m_0=m_0, w_0=w_0, theta_0=theta_0, r_k=r_k)
 
-Q = Q.subs(r1=r1, r2=r2, r3=r3, r_z=r_z, m_z=m_z, m_0=m_0, w_0=w_0, theta_0=theta_0, r_k=r_k)
+Q = Q.subs (r1=r1, r2=r2, r3=r3, r_z=r_z, m_z=m_z, m_0=m_0, w_0=w_0, theta_0=theta_0, r_k=r_k)
 
 #--------------------------------------------------READING CPP RESULT-------------------------------------------------------
 
 headers = ['mke_mesh', 'mke_w', 'mke_theta', 'mke_moment', 'mke_q']
+
 mke_res = read_and_save_data('output.txt', headers)
+
+mesh_orig = read_numbers_to_list ("mesh.txt")
+
+solve = read_numbers_to_list ("solve.txt")
+
+solve_w = solve[0::2];      solve_theta = solve[1::2]
 
 #--------------------------------------------------GRAPHICS-----------------------------------------------------------------
 
-x_mesh = np.linspace(0,25, 500)
+#print ("\nSAGE__GRAFICS")
+
+x_mesh = np.linspace(0,25, 1000)
 
 w_lambda =     lambda x_ : float(w.subs(x = x_))
 theta_lambda = lambda x_: float(theta.subs(x = x_))
@@ -108,30 +137,29 @@ M_lambda =     lambda x_: float(M.subs(x = x_))
 Q_lambda =     lambda x_: float(Q.subs(x = x_))
 
 w_max = max([w_lambda(x_) for x_ in x_mesh]);
-norm_q = w_max / (abs(q1) + abs(q2) + 1e-7)                                            # нормализация для распределенной нагрузки
-norm_r = 1 * w_max / (abs(r1) + abs(r2) + abs(r3) + abs(r_z) + abs(r_k) + 1e-7)        # нормализация для сил
 
-arrows = [(x_r1, r1 * norm_r), (x_r2, r2 * norm_r), (x_r3, r3 * norm_r), (x_k+7e-2, r_k * norm_r), (x_z-7e-2, r_z * norm_r)]
-width_max = max([r1, r2, r3, r_k, r_z]) * norm_r
+norm_q = w_max / (abs(q1) + abs(q2) + 1e-7 + 1e2)                                            # нормализация для распределенной нагрузки
 
-#--------------------------------------
+#---------------------------------------------------------------------------------------
 
-fig, axes = plt.subplots(4, 2, figsize=(18, 11))
+fig, axes = plt.subplots (4, 2, figsize = (18, 11))
 
+i = 0
 for ax in axes.flatten():
 
     ax.plot([0,25], [0,0], color='purple')                                             # ось x
-    ax.plot([x_q1, x_q2], [q1 * norm_q, q2 * norm_q], color='blue')
-    ax.fill_between([x_q1, x_q2], [q1 * norm_q, q2 * norm_q], color='lightblue', alpha=0.5)
+
+    ax.plot([x_q1, x_q2], [0, 0], c='blue', label='q_распр', lw=2)                       # распределенная нагрузка просто на оси
+
+    #ax.plot([x_q1, x_q2], [q1 * norm_q, q2 * norm_q], color='blue')                    # распределенная нагрузка ловкая
+    #ax.fill_between([x_q1, x_q2], [q1 * norm_q, q2 * norm_q], color='lightblue', alpha=0.5)
 
     ax.scatter([x_r1, x_r2, x_r3], [0,0,0], s=50, c='red', marker='^', label='опоры')
     ax.scatter([x_m], [0], s=50, c='green', marker='D', label='момент')
-    ax.plot([x_z, x_z], [0.3*w_max, -0.3*w_max], c='Brown', label='заделка', lw=4)
+    ax.plot([x_z, x_z], [0.1*w_max, -0.1*w_max], c='Brown', label='заделка', lw=4)
     ax.scatter([x_k], [0], s=50, c='Orange', marker='s', label='пружина')
     ax.scatter([x_p], [0] ,s=50, c='black', marker='^', label='сила')
 
-    for x_, dy in arrows:
-        ax.arrow(float(x_), 0, 0, float(dy), head_width=10*width_max, head_length=0.2*width_max, width=5*width_max, fc='black', ec='black')
 
     ax.set_xlim(0 ,25)
     
@@ -142,15 +170,39 @@ for ax in axes.flatten():
     ax.grid(which='major', linewidth=1)
     #ax.legend()
 
-axes[0, 0].plot(x_mesh, [Q_lambda(x_) for x_ in x_mesh]);                axes[0, 0].set_title('Перерезывающая сила')
-axes[1, 0].plot(x_mesh, [E*J * M_lambda(x_) for x_ in x_mesh]);          axes[1, 0].set_title('Момент')
-axes[2, 0].plot(x_mesh, [theta_lambda(x_) for x_ in x_mesh]);            axes[2, 0].set_title('Углы')
-axes[3, 0].plot(x_mesh, [w_lambda(x_) for x_ in x_mesh]);                axes[3, 0].set_title('Прогиб')
+    i += 1
 
-axes[0, 1].plot (mke_res['mke_mesh'], mke_res['mke_q']);                 axes[0, 1].set_title('Cила')
-axes[1, 1].plot (mke_res['mke_mesh'], mke_res['mke_moment']);            axes[1, 1].set_title('Момент')
-axes[2, 1].plot (mke_res['mke_mesh'], mke_res['mke_theta']);             axes[2, 1].set_title('Углы')
-axes[3, 1].plot (mke_res['mke_mesh'], mke_res['mke_w']);                 axes[3, 1].set_title('Прогиб')
+axes[0, 0].legend()
+axes[0, 0].plot(x_mesh, [Q_lambda(x_) for x_ in x_mesh]);                              axes[0, 0].set_title('МЕТОД НАЧАЛЬНЫХ ПАРАМЕТРОВ\nСила')
+axes[1, 0].plot(x_mesh, [E*J * M_lambda(x_) for x_ in x_mesh]);                        axes[1, 0].set_title('Момент')
+axes[2, 0].plot(x_mesh, [theta_lambda(x_) for x_ in x_mesh]);                          axes[2, 0].set_title('Углы')
+axes[3, 0].plot(x_mesh, [w_lambda(x_) for x_ in x_mesh]);                              axes[3, 0].set_title('Прогиб')
+
+axes[0, 1].legend()
+axes[0, 1].plot (mke_res['mke_mesh'], mke_res['mke_q'], c = 'purple');                 axes[0, 1].set_title('МЕТОД КОНЕЧНЫХ ЭЛЕМЕНТОВ\nCила')
+axes[1, 1].plot (mke_res['mke_mesh'], mke_res['mke_moment'], c = 'purple');            axes[1, 1].set_title('Момент')
+axes[2, 1].plot (mke_res['mke_mesh'], mke_res['mke_theta'], c = 'purple');             axes[2, 1].set_title('Углы')
+axes[3, 1].plot (mke_res['mke_mesh'], mke_res['mke_w'], c = 'purple');                 axes[3, 1].set_title('Прогиб')
+
+# решение из метода бубнова-галеркина
+axes[3, 1].scatter (mesh_orig, solve_w, c = 'black', s=20);                 
+axes[2, 1].scatter (mesh_orig, solve_theta, c = 'black', s=20);                 
+
+# мкэ на левой стороне
+'''
+axes[0, 0].plot (mke_res['mke_mesh'], mke_res['mke_q'], c = 'purple');                 
+axes[1, 0].plot (mke_res['mke_mesh'], mke_res['mke_moment'], c = 'purple');           
+axes[2, 0].plot (mke_res['mke_mesh'], mke_res['mke_theta'], c = 'purple');             
+axes[3, 0].plot (mke_res['mke_mesh'], mke_res['mke_w'], c = 'purple');   
+'''
 
 plt.tight_layout()
 plt.savefig('result.png')
+
+'''
+print ("max_w = ", max (mke_res['mke_w']), end = "     ")
+print ("max_theta = ", max (mke_res['mke_theta']), end = "     ")
+print ("max_moment = ", max (mke_res['mke_moment']), end = "     ")
+print ("max_q = ", max (mke_res['mke_q']))
+print ("w(0) = ", mke_res['mke_w'][0])
+'''

@@ -10,12 +10,124 @@
 
 using namespace std;
 
-void show_vect (double*, int, int);
+/* Функция для решения системы линейных уравнений методом сопряженных градиентов */
+void conjugate_gradient_s_limit (int size, double **A, double *B, double *x_conju, int* index_v, double* react,
+                                 int iter_max = 1e4, double epsilon = 1e-14, bool showing_param = 0)
+{
+  double *p = new double[size];        // p_k направление спуска 
+  double *r = new double[size];        // r_k невязка
+  double *tt = new double[size];       // tt = A * p_k 
+  double alpha, beta, tmp1, nevyzka, B_norm = 0;
+  
+  // возвращает 1 если позиция i в блок - векторе 2*L в тех индексах, которые надо занулить
+  auto is_in_index_v = [](int i, int* index_v) 
+     { return (i == 2 * index_v[0] || i == 2 * index_v[1] || i == 2 * index_v[2] || i == 2 * index_v[3] || i == (2 * index_v[3] + 1));}; 
+  
+  // зануляет позиции опор
+  auto cond_vect = [](double* a, int size, int* index_v) { for (size_t i = 0; i < 4; i++)  { a[2 * index_v[i]] = 0.0; } a[2 * index_v[3] + 1] = 0.0; }; 
 
-void show_array (double**, int);
+  cond_vect (x_conju, size, index_v);
+
+  /* Инициализация r_0 и p_0 */
+  for (int i = 0; i < size; i++)
+    {
+      r[i] = B[i];
+      for (size_t k = 0; k < size; k++)  { r[i] -= A[i][k] * x_conju[k]; }  // случай ненулевого начального условия x_0
+      p[i] = r[i];
+      B_norm += B[i] * B[i];  /* Норма B */
+    }
+
+  cond_vect (p, size, index_v);
+  B_norm = sqrt(B_norm);
+
+  /* Итерации метода сопряженных градиентов */
+  for (int count = 0; count < iter_max; count++)  /* Счетчик итераций */
+    {
+      alpha = 0.0;
+      tmp1 = 0.0;
+      beta = 0.0;
+
+      /* Вычисление A * p_k */
+      for (int i = 0; i < size; i++)
+        {
+          tt[i] = 0.0;
+          if (!is_in_index_v (i, index_v))
+            {
+              for (int k = 0; k < size; k++)  /* Вычисляем tt = A * p_k */
+                {
+                  tt[i] += A[i][k] * p[k];
+                }
+            }
+          tmp1 += r[i] * r[i];    /* tmp1 = (r_k, r_k) */
+          alpha += p[i] * tt[i];  /* alpha = (p_k, A * p_k) */
+        }
+
+      /* Проверка деления на ноль */
+      if (fabs(alpha) < 1e-12)  { cout << "Ошибка: деление на ноль в alpha" << endl;    break; }
+
+      alpha = tmp1 / alpha;
+
+      /* Обновление x_k+1 и r_k+1 */
+      for (int i = 0; i < size; i++)
+        {
+          x_conju[i] += alpha * p[i];
+          r[i] -= alpha * tt[i];
+        }
+
+      /* Вычисление beta */
+      for (int i = 0; i < size; i++)
+        {
+          beta += r[i] * r[i];
+        }
+
+      /* Норма остатка */
+      nevyzka = beta;
+      beta = beta / tmp1;
+
+      /* Метод Флетчера - Ривса | нужен рестарт на каждом size+1 иттерации нужно забывать направление спуска */
+      if (count % (size + 1) == 0)
+        {
+          beta = 0.0;
+        }
+
+      /* Обновление p_k+1 */
+      for (int i = 0; i < size; i++)
+        {
+          p[i] = r[i] + beta * p[i];
+        }
+      cond_vect (p, size, index_v);
+
+      /* Проверка условия останова */
+      if (nevyzka < epsilon * B_norm)
+        {
+          if (showing_param)
+            {
+              cout << "Метод сопряженных градиентов завершился после " << count + 1 << " итераций." << endl;
+            }
+          break;
+        }
+    }
+  // after itterations
+  for (int i = 0; i < size; i++)
+    {
+      r[i] = -B[i];
+      for (size_t k = 0; k < size; k++)  { r[i] += A[i][k] * x_conju[k]; } 
+    }
+  //cout << "r = ";   show_vect (r, size, 0);
+  
+  for (size_t i = 0; i < 4; i++)
+    {
+      react[i] = r[2 * index_v[i]];
+    }
+  react[4] = r[2 * index_v[3] + 1];
+
+  delete[] p;
+  delete[] r;
+  delete[] tt;
+}
 
 /* Функция для решения системы линейных уравнений методом сопряженных градиентов */
-void conjugate_gradient (int size, double **A, double *B, double *x_conju, int iter_max = 1e2, double epsilon = 1e-14, bool showing_param = 0)
+void conjugate_gradient (int size, double **A, double *B, double *x_conju, int iter_max = 1e4, double epsilon = 1e-14, bool showing_param = 0)
 {
   double *p = new double[size];    /* p_k */
   double *r = new double[size];    /* r_k */
@@ -34,7 +146,8 @@ void conjugate_gradient (int size, double **A, double *B, double *x_conju, int i
   B_norm = sqrt(B_norm);
 
   /* Итерации метода сопряженных градиентов */
-  for (int count = 0; count < iter_max; count++)  /* Счетчик итераций */
+  int count = 0;
+  for (count = 0; count < iter_max; count++)  /* Счетчик итераций */
     {
       alpha = 0.0;
       tmp1 = 0.0;
@@ -175,91 +288,66 @@ void LU_(int size, double **A, double *B, double* x_LU)
   delete[] L;   delete[] U;  
 }
 
-
-/* базисные функции в порядке {N1, L1, N2, L2} */
-double base_func (int p, double t)
+/* Вычисление значений базисной функции и её производных */
+double base_function (int p, double t, double h, int derivative)
 {
   if (t < 0 || t > 1)
     {
       return 0.0;
     }
 
-  switch (p)
+  switch (derivative)
     {
-      case 1: return 1 - 3 * pow(t, 2) + 2 * pow(t, 3);           // N1                           
-      case 2: return t - 2 * t * t + pow(t, 3);                   // L1
-      case 3: return 3 * pow(t, 2) - 2 * pow(t, 3);               // N2
-      case 4: return -t * t + pow(t, 3);                          // L2
-      default: 
-        {
-          cout << "OUT OF RANGE base_func" << endl;   return 0.0;
-        }
-    }
-  return 0;
-}
+      case 0: // Базисные функции
+        switch (p)
+          {
+            case 1: return 1 - 3 * pow(t, 2) + 2 * pow(t, 3);       // N1
+            case 2: return h * (t - 2 * pow(t, 2) + pow(t, 3));     // L1
+            case 3: return 3 * pow(t, 2) - 2 * pow(t, 3);           // N2
+            case 4: return h * (-pow(t, 2) + pow(t, 3));            // L2
+            default: break;
+          }
+        break;
 
-/* производные базисных функций */
-double base_d_func (int p, double t)
-{
-  if (t < 0 || t > 1)
-  {
-    return 0.0;
-  }
+      case 1: // Первые производные
+        switch (p)
+          {
+            case 1: return -6 * t + 6 * pow(t, 2);            // dN1
+            case 2: return h * (1 - 4 * t + 3 * pow(t, 2));   // dL1
+            case 3: return 6 * t - 6 * pow(t, 2);             // dN2
+            case 4: return h * (-2 * t + 3 * pow(t, 2));      // dL2
+            default: break;
+          }
+        break;
 
-  switch (p)
-    {
-      case 1: return -6 * t + 6 * pow(t, 2);                  // dN1                           
-      case 2: return 1 - 4 * t + 3 * pow(t, 2);               // dL1
-      case 3: return 6 * t - 6 * pow(t, 2);                   // dN2
-      case 4: return -2 * t + 3 * pow(t, 2);                  // dL2
-      default: 
-        {
-          cout << "OUT OF RANGE base_func" << endl;   return 0.0;
-        }
-    }
-  return 0;
-}
+      case 2: // Вторые производные
+        switch (p)
+          {
+            case 1: return -6 + 12 * t;                      // ddN1
+            case 2: return h * (-4 + 6 * t);                 // ddL1
+            case 3: return 6 - 12 * t;                       // ddN2
+            case 4: return h * (-2 + 6 * t);                 // ddL2
+            default: break;
+          }
+        break;
 
-double base_dd_func (int p, double t)
-{
-  if (t < 0 || t > 1)
-    {
-      return 0.0;
-    }
+      case 3: // Третьи производные
+        switch (p)
+          {
+            case 1: return 12;                               // dddN1
+            case 2: return 6 * h;                            // dddL1
+            case 3: return -12;                              // dddN2
+            case 4: return 6 * h;                            // dddL2
+            default: break;
+          }
+        break;
 
-  switch (p)
-    {
-      case 1: return -6 + 12 * t;              // ddN1                           
-      case 2: return -4 + 6 * t;               // ddL1
-      case 3: return  6 - 12 * t;              // ddN2
-      case 4: return -2 + 6 * t;               // ddL2
-      default: 
-        {
-          cout << "OUT OF RANGE base_func" << endl;   return 0.0;
-        }
-    }
-  return 0;
-}
-
-double base_ddd_func (int p, double t)
-{
-  if (t < 0 || t > 1)
-    {
-      return 0.0;
+      default:
+        break;
     }
 
-  switch (p)
-    {
-      case 1: return  12;              // dddN1                           
-      case 2: return   6;              // dddL1
-      case 3: return -12;              // dddN2
-      case 4: return   6;              // dddL2
-      default: 
-        {
-          cout << "OUT OF RANGE base_func" << endl;   return 0.0;
-        }
-    }
-  return 0;
+  cout << "OUT OF RANGE base_function: p=" << p << ", derivative=" << derivative << endl;
+  return 0.0;
 }
 
 /* меняет i, j на номера базисных функций по которым считался интеграл в a_base */
@@ -304,21 +392,21 @@ int p_def(int i, int j)
   return p; 
 }
 
-/* на каждои отрезке неопределенный инт a_base от 0 до 1 */
-double a_base (int p)
+// на каждои отрезке неопределенный инт a_base от 0 до 1 на каждом выбивается h 
+double a_base (int p, double h)
 {
   switch (p)
     {
-      case 0: return  12;      // 36 * t - 72 * pow(t, 2) + 48 * pow(t, 3);             // 11
-      case 1: return   6;      // 6 * (4 * t - 7 * pow(t, 2) + 4 * pow(t, 3));          // 12
-      case 2: return -12;      // -36 * t + 72 * pow(t, 2) - 48 * pow(t, 3);            // 13
-      case 3: return   6;      // 6 * (2 * t - 5 * pow(t, 2) + 4 * pow(t, 3));          // 14
-      case 4: return   4;      // 16 * t - 24 * pow(t, 2) + 12 * pow(t, 3);             // 22
-      case 5: return  -6;      // -6 * (4 * t - 7 * pow(t, 2) + 4 * pow(t, 3));         // 23
-      case 6: return   2;      // 2 * (4 * t - 9 * pow(t, 2) + 6 * pow(t, 3));          // 24
-      case 7: return  12;      // 36 * t - 72 * pow(t, 2) + 48 * pow(t, 3);             // 33
-      case 8: return  -6;      // -6 * (2 * t - 5 * pow(t, 2) + 4 * pow(t, 3));         // 34
-      case 9: return   4;      // 4 * t - 12 * pow(t, 2) + 12 * pow(t, 3);              // 44
+      case 0: return  12;              // 36 * t - 72 * pow(t, 2) + 48 * pow(t, 3);             // 11
+      case 1: return   6 * h;          // 6 * (4 * t - 7 * pow(t, 2) + 4 * pow(t, 3));          // 12
+      case 2: return -12;              // -36 * t + 72 * pow(t, 2) - 48 * pow(t, 3);            // 13
+      case 3: return   6 * h;          // 6 * (2 * t - 5 * pow(t, 2) + 4 * pow(t, 3));          // 14
+      case 4: return   4 * h * h;      // 16 * t - 24 * pow(t, 2) + 12 * pow(t, 3);             // 22
+      case 5: return  -6 * h;          // -6 * (4 * t - 7 * pow(t, 2) + 4 * pow(t, 3));         // 23
+      case 6: return   2 * h * h;      // 2 * (4 * t - 9 * pow(t, 2) + 6 * pow(t, 3));          // 24
+      case 7: return  12;              // 36 * t - 72 * pow(t, 2) + 48 * pow(t, 3);             // 33
+      case 8: return  -6 * h;          // -6 * (2 * t - 5 * pow(t, 2) + 4 * pow(t, 3));         // 34
+      case 9: return   4 * h * h;      // 4 * t - 12 * pow(t, 2) + 12 * pow(t, 3);              // 44
       default: 
         {
           cout << "OUT OF RANGE a_base" << endl;   return 0.0;
@@ -331,38 +419,31 @@ double a_base (int p)
 double a_res (int p, double x_i, double x_right, double E, double J, double x_k, double k)
 {
   double h_cur = x_right - x_i;
-  double res = E * J * pow(1 / h_cur, 3) * a_base(p);  // 1/h^3 вылезает из вторых производных и якобиана преобразования
-
-/* 
-  cout << "h_cur = " << h_cur << "  ";
-  cout << "p = " << p << "  x_i = " << x_i << "  x_i+1 = " << x_right << "  res = " << res << "   int(1) = " << a_base(p);
-  cout << "   E*J = " << E*J << "    1/h^3 = " << pow(1 / h_cur, 3) << endl;
-*/
+  double res = E * J * pow(1 / h_cur, 3) * a_base(p, h_cur);  // 1/h^3 вылезает из вторых производных и якобиана преобразования
 
   if (x_k < x_i || x_k > x_right)
     {
       return res;
     }
-  else /* отображаем элемент, на который попал x_k в [0,1] получаем кси_к (определенную от 0 до 1) и на ней считаем произведение */
+  else // отображаем элемент, на который попал x_k в [0,1] получаем кси_к (определенную от 0 до 1) и на ней считаем произведение 
     {
-      int i,j;    p_change(p, i, j);
-      //cout << "p = " << p << "  add = " << k * base_func(i, (x_k - x_i) / h_cur) * base_func(j, (x_k - x_i) / h_cur) << endl;
-      return res + k * base_func(i, (x_k - x_i) / h_cur) * base_func(j, (x_k - x_i) / h_cur);
+      int i, j;    p_change(p, i, j);
+      return res + k * base_function (i, (x_k - x_i) / h_cur, h_cur, 0) * base_function (j, (x_k - x_i) / h_cur, h_cur, 0);
     }  
 }
 
 /* считает определенный интеграл он B_i * phi_j, где B_i линейный базис */
-double f_integral (int i, int j)
+double f_integral (int i, int j, double h)
 {
   if (i == 1 && j == 1)   return 3 / 20;
-  if (i == 1 && j == 2)   return 1 / 30;
+  if (i == 1 && j == 2)   return h * 1 / 30;
   if (i == 1 && j == 3)   return 7 / 20;
-  if (i == 1 && j == 4)   return -1 / 20;
+  if (i == 1 && j == 4)   return -1 * h / 20;
 
   if (i == 2 && j == 1)   return 7 / 20;
-  if (i == 2 && j == 2)   return 1 / 20;
+  if (i == 2 && j == 2)   return h * 1 / 20;
   if (i == 2 && j == 3)   return 3 / 20;
-  if (i == 2 && j == 4)   return -1 / 30;
+  if (i == 2 && j == 4)   return -1 * h / 30;
 
   return 0.0;
 }
@@ -375,11 +456,11 @@ double q_global (double x, double q1, double q2, double x_q1, double x_q2)
 }
 // q2 * t + q1 - q1 * t = (q2 - q1) * t - q1
 
-/* подсчет <f,phi_p> с распределенной нагрузкой, моментом и сосредоточенной силой 
-   p - индекс базисных эрмитовых от 1 до 4 */
+// подсчет <f,phi_p> с распределенной нагрузкой, моментом и сосредоточенной силой | p - индекс базисных эрмитовых от 1 до 4 
 double f_res (int p, double x_i, double x_right, double q1, double q2, double x_q1, double x_q2, double m, double x_m, double p_force, double x_p)
 {
   double res = 0.0;
+  double h = x_right - x_i;
 
 /* часть с распределенной нагрузкой q 
    по построению сетки конечный элемент может либо лежать целиком на распред. нагрузке, либо целиком не лежать.
@@ -391,21 +472,21 @@ double f_res (int p, double x_i, double x_right, double q1, double q2, double x_
       double q1_, q2_;                              // значения q(x) на концах конечного элемента
       q1_ = q_global(x_i, q1, q2, x_q1, x_q2);
       q2_ = q_global(x_right, q1, q2, x_q1, x_q2);
-      res += (x_right - x_i) * (q2_ * f_integral(1, p) + q1_ * f_integral(2, p));
+      res += h * (q2_ * f_integral(1, p, h) + q1_ * f_integral(2, p, h));
     }
 
 /* часть с моментом m */  
   if (x_m >= x_i && x_m < x_right)
     {
       //cout << "x_i = " << x_i << "  x_r = " << x_right << "   moment" << endl;
-      res -= m * (1 / (x_right - x_i)) * base_d_func(p, (x_m - x_i) / (x_right - x_i));
+      res -= m * (1 / h) * base_function (p, (x_m - x_i) / h, h, 1);
     }
 
 /* часть с силой p. Переведенная в локальные координаты */  
   if (x_p >= x_i && x_p < x_right)
     {
       //cout << "x_i = " << x_i << "  x_r = " << x_right << "   force" << endl;
-      res += p_force * base_func(p, (x_p - x_i) / (x_right - x_i));
+      res += p_force * base_function (p, (x_p - x_i) / h, h, 0);
     }
   return res;  
 }
@@ -417,7 +498,7 @@ void show_array (double** array, int size)
     {
       for (int j = 0; j < size; ++j) 
         {
-          cout << setw(7) << setprecision(2) << array[i][j] << " ";
+          cout << setw(6) << setprecision(2) << array[i][j] << " ";
           //cout << setw(12) << array[i][j] << " ";
         }
       cout << endl;
@@ -425,26 +506,26 @@ void show_array (double** array, int size)
     cout << endl;
 }
 
+void array_to_file(const char* filename, double* array, int len)
+{
+    ofstream outfile(filename);
+    if (!outfile.is_open()) {
+        cout << "Ошибка: не удалось открыть файл для записи!" << std::endl;
+        return;
+    }
+    int width = 15;
+    for (int i = 0; i < len; i++) {
+        outfile << scientific << setw (width) << array[i] << endl; 
+    }
+    outfile.close(); 
+}
+
 void show_vect (double* vect, int size, int mode)
 {
   for (int i = 0; i < size; ++i) 
     {
       //cout << setw(8) << setprecision(3) << vect[i] << "\n";
-      cout << setprecision(4) << vect[i] << "  ";
-      if (mode == 0)
-        {
-          cout << endl;
-        }
-    }
-  cout << endl;  
-}
-
-void show_vect_int (int* vect, int size, int mode)
-{
-  for (int i = 0; i < size; ++i) 
-    {
-      //cout << setw(8) << setprecision(3) << vect[i] << "\n";
-      cout << setprecision(4) << static_cast<double>(vect[i]) << "  ";
+      cout  << vect[i] << "  ";
       if (mode == 0)
         {
           cout << endl;
@@ -467,8 +548,8 @@ void sort (double* array, int size, int* index_v)
       {
         if (array[i] > array[j])
           {
-            swap(array[i], array[j]);
-            swap(original_indices[i], original_indices[j]);
+            swap (array[i], array[j]);
+            swap (original_indices[i], original_indices[j]);
           }
       }
   }
@@ -495,7 +576,7 @@ int make_mesh (int L, double* data, double* x_mesh, int* index_v)
   if (L < 9)  { cout << "ERROR: L < 9\n";  return -1; }
 
   /* возвращает h по концам и колву внутреннихъ точек */
-  auto into_dots = [](double a, double b, int n) {return fabs(b - a) / static_cast<double>(n + 1); };  
+  auto into_dots = [](double a, double b, int n) { return fabs(b - a) / static_cast<double>(n + 1); };  
 
   // [x_k, x_q1, x_q2, x_r1, x_r2, x_r3, x_m, x_z, x_p][q1, q2, p, k, m, E, J]
   x_mesh[L - 9] = 0.0;
@@ -511,7 +592,7 @@ int make_mesh (int L, double* data, double* x_mesh, int* index_v)
   x_mesh[L - 3] = data[5]; /* x_r3 */
 
   // за этими следим / x_r1  x_r2  x_r3
-  index_v[0] = L - 7;    index_v[1] = L - 5;     index_v[2] = L - 3;
+  index_v[0] = L - 7;    index_v[1] = L - 5;     index_v[2] = L - 3;    index_v[3] = L - 1;
 
   int min_part = (L - 9) / 8;     // обязательное колво в каждом gate 
   int peace = (L - 9) % 8;        // остаток, раскидываем с хвоста / более равномерно так что ли
@@ -532,6 +613,8 @@ int make_mesh (int L, double* data, double* x_mesh, int* index_v)
 
   sort (x_mesh, L, index_v);
 
+  array_to_file ("mesh.txt", x_mesh, L);
+  
   return 0;
 }
 
@@ -551,7 +634,7 @@ void read_data (const string& filename, double* data)
 }
 
 // Функция для проверки корректности решения
-bool verify_solution (double **A, double *Q, double *F, int size, double tolerance = 1e-13, bool showing_param = 0)
+bool verify_solution (double **A, double *Q, double *F, int size, double tolerance = 1e-9, bool showing_param = 0)
 {
   // Вычисляем A * Q
   double *computed_F = new double[size];
@@ -706,49 +789,73 @@ void make_solution (int show_count, double* show_mesh, double* x_mesh, double* s
               cout << setw (10) << fixed << setprecision(6) << "cur = " << show_mesh[count];
               cout << setw (10) << "       h = " << h_current;
               cout << setw (10) << "       arg = " << (show_mesh[count] - x_mesh[i]) / h_current;
-              cout << setw (10) << "       y_1 = " << base_func (1, (show_mesh[count] - x_mesh[i]) / h_current) << "\n";
+              cout << setw (10) << "       y_1 = " << base_function (1, (show_mesh[count] - x_mesh[i]) / h_current, h_current, 0) << "\n";
             }
 
           // 3 порядок
-          w[count] = solve[2 * i] * base_func (1, (show_mesh[count] - x_mesh[i]) / h_current) +             
-                     solve[2 * i + 1] * base_func (2, (show_mesh[count] - x_mesh[i]) / h_current) +
-                     solve[2 * (i + 1)] * base_func (3, (show_mesh[count] - x_mesh[i]) / h_current) +
-                     solve[2 * (i + 1) + 1] * base_func (4, (show_mesh[count] - x_mesh[i]) / h_current);
+          w[count] = solve[2 * i] * base_function (1, (show_mesh[count] - x_mesh[i]) / h_current, h_current, 0) +             
+                     solve[2 * i + 1] * base_function (2, (show_mesh[count] - x_mesh[i]) / h_current, h_current, 0) +
+                     solve[2 * (i + 1)] * base_function (3, (show_mesh[count] - x_mesh[i]) / h_current, h_current, 0) +
+                     solve[2 * (i + 1) + 1] * base_function (4, (show_mesh[count] - x_mesh[i]) / h_current, h_current, 0);
           // 2 порядок
           theta[count] = 1 / h_current * 
-                        (solve[2 * i] * base_d_func (1, (show_mesh[count] - x_mesh[i]) / h_current) +       
-                         solve[2 * i + 1] * base_d_func (2, (show_mesh[count] - x_mesh[i]) / h_current) +
-                         solve[2 * (i + 1)] * base_d_func (3, (show_mesh[count] - x_mesh[i]) / h_current) +
-                         solve[2 * (i + 1) + 1] * base_d_func (4, (show_mesh[count] - x_mesh[i]) / h_current));
+                        (solve[2 * i] * base_function (1, (show_mesh[count] - x_mesh[i]) / h_current, h_current, 1) +       
+                         solve[2 * i + 1] * base_function (2, (show_mesh[count] - x_mesh[i]) / h_current, h_current, 1) +
+                         solve[2 * (i + 1)] * base_function (3, (show_mesh[count] - x_mesh[i]) / h_current, h_current, 1) +
+                         solve[2 * (i + 1) + 1] * base_function (4, (show_mesh[count] - x_mesh[i]) / h_current, h_current, 1));
           // 1 порядок
           moment[count] = pow (1 / h_current, 2) * 
                           data[14] * data[15] *
-                              (solve[2 * i] * base_dd_func (1, (show_mesh[count] - x_mesh[i]) / h_current) +
-                               solve[2 * i + 1] * base_dd_func (2, (show_mesh[count] - x_mesh[i]) / h_current) +
-                               solve[2 * (i + 1)] * base_dd_func (3, (show_mesh[count] - x_mesh[i]) / h_current) +
-                               solve[2 * (i + 1) + 1] * base_dd_func (4, (show_mesh[count] - x_mesh[i]) / h_current));   
+                              (solve[2 * i] * base_function (1, (show_mesh[count] - x_mesh[i]) / h_current, h_current, 2) +
+                               solve[2 * i + 1] * base_function (2, (show_mesh[count] - x_mesh[i]) / h_current, h_current, 2) +
+                               solve[2 * (i + 1)] * base_function (3, (show_mesh[count] - x_mesh[i]) / h_current, h_current, 2) +
+                               solve[2 * (i + 1) + 1] * base_function (4, (show_mesh[count] - x_mesh[i]) / h_current, h_current, 2));   
           // 0 порядок
           force[count] = pow (1 / h_current, 3) *
-                        (solve[2 * i] * base_ddd_func (1, (show_mesh[count] - x_mesh[i]) / h_current) +
-                         solve[2 * i + 1] * base_ddd_func (2, (show_mesh[count] - x_mesh[i]) / h_current) +
-                         solve[2 * (i + 1)] * base_ddd_func (3, (show_mesh[count] - x_mesh[i]) / h_current) +
-                         solve[2 * (i + 1) + 1] * base_ddd_func (4, (show_mesh[count] - x_mesh[i]) / h_current)); 
+                        (solve[2 * i] * base_function (1, (show_mesh[count] - x_mesh[i]) / h_current, h_current, 3) +
+                         solve[2 * i + 1] * base_function (2, (show_mesh[count] - x_mesh[i]) / h_current, h_current, 3) +
+                         solve[2 * (i + 1)] * base_function (3, (show_mesh[count] - x_mesh[i]) / h_current, h_current, 3) +
+                         solve[2 * (i + 1) + 1] * base_function (4, (show_mesh[count] - x_mesh[i]) / h_current, h_current, 3)); 
 
           count++;
         }
     }
 }
 
-void array_to_file(const char* filename, double* array, int len)
+// Функция для поиска совпадений
+void find_indices(double* x_mesh, int mesh_size, double* values, int* found_indices, double tolerance = 1e-6) 
 {
-    ofstream outfile(filename);
-    if (!outfile.is_open()) {
-        cout << "Ошибка: не удалось открыть файл для записи!" << std::endl;
-        return;
-    }
-    int width = 15;
-    for (int i = 0; i < len; i++) {
-        outfile << scientific << setw (width) << array[i] << endl; 
-    }
-    outfile.close(); 
+  int values_size = 4;
+
+    // Проход по массиву значений
+  for (int i = 0; i < values_size; ++i) 
+    {
+      for (int j = 0; j < mesh_size; ++j) 
+        {
+          if (abs(x_mesh[j] - values[i]) < tolerance) 
+            { 
+              found_indices[i] = j;
+              break; // Найдено, переходим к следующему значению
+          }
+      }
+  }
+}
+
+double* make_uniform_mesh (int &L, int* index_v, int n = 0)
+{
+  L = 25 * static_cast<int>(pow(2, n)) + 1;
+  
+  double* x_mesh = new double[L];
+  
+  double h = 1 / pow (2, n);
+
+  for (int i = 0; i < L; i++)  x_mesh[i] = i * h;
+
+  double values[4] = {4, 12, 16, 25};  
+  
+  find_indices(x_mesh, L, values, index_v); 
+    
+  array_to_file("mesh.txt", x_mesh, L);
+
+  return x_mesh;
 }
