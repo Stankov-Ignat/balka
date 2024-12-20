@@ -9,19 +9,21 @@
 #include <stdexcept> // Для runtime_error
 
 using namespace std;
+void show_vect (double* vect, int size, int mode);
 
 /* Функция для решения системы линейных уравнений методом сопряженных градиентов */
 void conjugate_gradient_s_limit (int size, double **A, double *B, double *x_conju, int* index_v, double* react,
-                                 int iter_max = 1e4, double epsilon = 1e-14, bool showing_param = 0)
+                                 int iter_max = 1e5, double epsilon = 1e-8, bool showing_param = 0)
 {
   double *p = new double[size];        // p_k направление спуска 
   double *r = new double[size];        // r_k невязка
-  double *tt = new double[size];       // tt = A * p_k 
-  double alpha, beta, tmp1, nevyzka, B_norm = 0;
+  double *y = new double[size];       // y = A * p_k 
+
+  double alpha, beta, tmp, nevyzka, B_norm = 0;
   
   // возвращает 1 если позиция i в блок - векторе 2*L в тех индексах, которые надо занулить
   auto is_in_index_v = [](int i, int* index_v) 
-     { return (i == 2 * index_v[0] || i == 2 * index_v[1] || i == 2 * index_v[2] || i == 2 * index_v[3] || i == (2 * index_v[3] + 1));}; 
+     { return (i == 2 * index_v[0] || i == 2 * index_v[1] || i == 2 * index_v[2] || i == 2 * index_v[3] || i == (2 * index_v[3] + 1)); }; 
   
   // зануляет позиции опор
   auto cond_vect = [](double* a, int size, int* index_v) { for (size_t i = 0; i < 4; i++)  { a[2 * index_v[i]] = 0.0; } a[2 * index_v[3] + 1] = 0.0; }; 
@@ -40,55 +42,55 @@ void conjugate_gradient_s_limit (int size, double **A, double *B, double *x_conj
   cond_vect (p, size, index_v);
   B_norm = sqrt(B_norm);
 
-  /* Итерации метода сопряженных градиентов */
-  for (int count = 0; count < iter_max; count++)  /* Счетчик итераций */
+  int count = 0;
+  /* Итерации метода сопряженных градиентов основной */
+  for (count = 0; count < iter_max; count++)  
     {
       alpha = 0.0;
-      tmp1 = 0.0;
+      tmp = 0.0;
       beta = 0.0;
 
       /* Вычисление A * p_k */
       for (int i = 0; i < size; i++)
         {
-          tt[i] = 0.0;
+          y[i] = 0.0;
           if (!is_in_index_v (i, index_v))
             {
               for (int k = 0; k < size; k++)  /* Вычисляем tt = A * p_k */
                 {
-                  tt[i] += A[i][k] * p[k];
+                  y[i] += A[i][k] * p[k];
                 }
             }
-          tmp1 += r[i] * r[i];    /* tmp1 = (r_k, r_k) */
-          alpha += p[i] * tt[i];  /* alpha = (p_k, A * p_k) */
+          tmp += r[i] * p[i];    /* tmp = (r_k, p_k) */
+          alpha += p[i] * y[i];  /* alpha = (p_k, y_k) */
         }
 
       /* Проверка деления на ноль */
-      if (fabs(alpha) < 1e-12)  { cout << "Ошибка: деление на ноль в alpha" << endl;    break; }
+      if (fabs(alpha) < 1e-10)  { cout << "Ошибка: деление на ноль в alpha" << endl;    break; }
 
-      alpha = tmp1 / alpha;
+      alpha = tmp / alpha;    // alpha = (p, r) / (p, y)
 
       /* Обновление x_k+1 и r_k+1 */
       for (int i = 0; i < size; i++)
         {
-          x_conju[i] += alpha * p[i];
-          r[i] -= alpha * tt[i];
+          x_conju[i] += alpha * p[i];     // x_k+1 = x_k + alpha * p_k
+          r[i] -= alpha * y[i];           // r_k+1 = r_k - alpha * y
         }
 
-      /* Вычисление beta */
+      // Вычисление beta 
+      double p_y = 0.0;
       for (int i = 0; i < size; i++)
         {
-          beta += r[i] * r[i];
+          beta -= r[i] * y[i];
+          p_y += p[i] * y[i];
         }
 
       /* Норма остатка */
       nevyzka = beta;
-      beta = beta / tmp1;
+      beta = beta / p_y;
 
       /* Метод Флетчера - Ривса | нужен рестарт на каждом size+1 иттерации нужно забывать направление спуска */
-      if (count % (size + 1) == 0)
-        {
-          beta = 0.0;
-        }
+      //if (count % (size + 1) == 0)    { beta = 0.0; }
 
       /* Обновление p_k+1 */
       for (int i = 0; i < size; i++)
@@ -107,6 +109,7 @@ void conjugate_gradient_s_limit (int size, double **A, double *B, double *x_conj
           break;
         }
     }
+
   // after itterations
   for (int i = 0; i < size; i++)
     {
@@ -123,11 +126,11 @@ void conjugate_gradient_s_limit (int size, double **A, double *B, double *x_conj
 
   delete[] p;
   delete[] r;
-  delete[] tt;
+  delete[] y;
 }
 
 /* Функция для решения системы линейных уравнений методом сопряженных градиентов */
-void conjugate_gradient (int size, double **A, double *B, double *x_conju, int iter_max = 1e4, double epsilon = 1e-14, bool showing_param = 0)
+void conjugate_gradient (int size, double **A, double *B, double *x_conju, int iter_max = 1e2, double epsilon = 1e-14, bool showing_param = 0)
 {
   double *p = new double[size];    /* p_k */
   double *r = new double[size];    /* r_k */
@@ -195,7 +198,6 @@ void conjugate_gradient (int size, double **A, double *B, double *x_conju, int i
       nevyzka = beta;
       beta = beta / tmp1;
 
-      /* Еще он звисит но начальной точки */
       /* Метод Флетчера - Ривса нужен рестарт на каждом size+1 иттерации нужно забывать направление спуска */
       if (count % (size + 1) == 0)
         {
@@ -222,70 +224,6 @@ void conjugate_gradient (int size, double **A, double *B, double *x_conju, int i
   delete[] p;
   delete[] r;
   delete[] tt;
-}
-
-void LU_(int size, double **A, double *B, double* x_LU)
-{
-  double** L = new double *[size];                                                                               
-  double** U = new double *[size];        
-
-  for (size_t i = 0; i < size; i++)
-    {
-      U[i] = new double[size];   L[i] = new double[size]; 
-    }        
-
-  for (size_t i = 0; i < size; i++) 
-   {
-      /* Вычисление элементов U для строки i */
-      for (size_t j = i; j < size; j++) 
-        {
-          U[i][j] = A[i][j];
-          for (size_t k = 0; k < i; k++) 
-            {
-              U[i][j] -= L[i][k] * U[k][j];
-            }
-        }
-
-      /* Вычисление элементов L для столбца i */
-      for (size_t j = i + 1; j < size; j++) 
-        {
-          L[j][i] = A[j][i];
-          for (size_t k = 0; k < i; k++) 
-            {
-              L[j][i] -= L[j][k] * U[k][i];
-            }
-          L[j][i] /= U[i][i];
-        }
-
-      /* Диагональный элемент L[i][i] всегда равен 1 */
-      L[i][i] = 1.0;
-  }
-  
-  for (int i = 0; i < size; i++)                   // обратный ход L
-    {
-      x_LU[i] = B[i];
-
-      for (size_t j = 0; j < i; j++)
-        {
-          x_LU[i] -= L[i][j] * x_LU[j];
-        }
-    }
-
-  for (int i = size - 1; i > -1; i--)             // обратный ход U
-    {
-      for (size_t j = i + 1; j < size; j++)
-        {
-          x_LU[i] -= U[i][j] * x_LU[j];
-        }
-      x_LU[i] /= U[i][i];
-    }
-
-  for (size_t i = 0; i < size; i++) 
-    {
-      delete[] L[i];
-      delete[] U[i];
-    }
-  delete[] L;   delete[] U;  
 }
 
 /* Вычисление значений базисной функции и её производных */
@@ -346,7 +284,7 @@ double base_function (int p, double t, double h, int derivative)
         break;
     }
 
-  cout << "OUT OF RANGE base_function: p=" << p << ", derivative=" << derivative << endl;
+  cout << "OUT OF RANGE base_function: p = " << p << ", derivative=" << derivative << endl;
   return 0.0;
 }
 
@@ -373,7 +311,7 @@ void p_change (int p, int &i, int &j)
 }
 
 /* по i,j --> p номер в a_base */
-int p_def(int i, int j) 
+int p_def (int i, int j) 
 {
   int p = -1;
   if (i > j)  swap(i, j); // i <= j
@@ -392,7 +330,7 @@ int p_def(int i, int j)
   return p; 
 }
 
-// на каждои отрезке неопределенный инт a_base от 0 до 1 на каждом выбивается h 
+// на каждои отрезке неопределенный инт a_base от 0 до 1 на каждом выбивается h | порядок N1, L1, N2, L2
 double a_base (int p, double h)
 {
   switch (p)
@@ -435,15 +373,15 @@ double a_res (int p, double x_i, double x_right, double E, double J, double x_k,
 /* считает определенный интеграл он B_i * phi_j, где B_i линейный базис */
 double f_integral (int i, int j, double h)
 {
-  if (i == 1 && j == 1)   return 3 / 20;
-  if (i == 1 && j == 2)   return h * 1 / 30;
-  if (i == 1 && j == 3)   return 7 / 20;
-  if (i == 1 && j == 4)   return -1 * h / 20;
+  if (i == 1 && j == 1)   return 3.0 / 20.0;
+  if (i == 1 && j == 2)   return h / 30.0;
+  if (i == 1 && j == 3)   return 7.0 / 20.0;
+  if (i == 1 && j == 4)   return -h / 20.0;
 
-  if (i == 2 && j == 1)   return 7 / 20;
-  if (i == 2 && j == 2)   return h * 1 / 20;
-  if (i == 2 && j == 3)   return 3 / 20;
-  if (i == 2 && j == 4)   return -1 * h / 30;
+  if (i == 2 && j == 1)   return 7.0 / 20.0;
+  if (i == 2 && j == 2)   return h / 20.0;
+  if (i == 2 && j == 3)   return 3.0 / 20.0;
+  if (i == 2 && j == 4)   return -h / 30.0;
 
   return 0.0;
 }
@@ -454,7 +392,6 @@ double q_global (double x, double q1, double q2, double x_q1, double x_q2)
 
   return q1 + (q2 - q1) / (x_q2 - x_q1) * (x - x_q1);
 }
-// q2 * t + q1 - q1 * t = (q2 - q1) * t - q1
 
 // подсчет <f,phi_p> с распределенной нагрузкой, моментом и сосредоточенной силой | p - индекс базисных эрмитовых от 1 до 4 
 double f_res (int p, double x_i, double x_right, double q1, double q2, double x_q1, double x_q2, double m, double x_m, double p_force, double x_p)
@@ -462,30 +399,25 @@ double f_res (int p, double x_i, double x_right, double q1, double q2, double x_
   double res = 0.0;
   double h = x_right - x_i;
 
-/* часть с распределенной нагрузкой q 
-   по построению сетки конечный элемент может либо лежать целиком на распред. нагрузке, либо целиком не лежать.
-   поэтому проверка лежит ли середина правее x_i */
+/* часть с распределенной нагрузкой q */
   double median = (x_i + x_right) / 2;
   if (median > x_q1 && median < x_q2)
     {
-      //cout << "x_i = " << x_i << "  x_r = " << x_right << "   q_raspred" << endl;
       double q1_, q2_;                              // значения q(x) на концах конечного элемента
-      q1_ = q_global(x_i, q1, q2, x_q1, x_q2);
-      q2_ = q_global(x_right, q1, q2, x_q1, x_q2);
-      res += h * (q2_ * f_integral(1, p, h) + q1_ * f_integral(2, p, h));
+      q1_ = q_global (x_i, q1, q2, x_q1, x_q2);
+      q2_ = q_global (x_right, q1, q2, x_q1, x_q2);
+      res += h * (q2_ * f_integral(1, p, h) + q1_ * f_integral(2, p, h));   // h - якобиан
     }
 
 /* часть с моментом m */  
   if (x_m >= x_i && x_m < x_right)
     {
-      //cout << "x_i = " << x_i << "  x_r = " << x_right << "   moment" << endl;
-      res -= m * (1 / h) * base_function (p, (x_m - x_i) / h, h, 1);
+      res += m * (1 / h) * base_function (p, (x_m - x_i) / h, h, 1);
     }
 
 /* часть с силой p. Переведенная в локальные координаты */  
   if (x_p >= x_i && x_p < x_right)
     {
-      //cout << "x_i = " << x_i << "  x_r = " << x_right << "   force" << endl;
       res += p_force * base_function (p, (x_p - x_i) / h, h, 0);
     }
   return res;  
@@ -499,14 +431,13 @@ void show_array (double** array, int size)
       for (int j = 0; j < size; ++j) 
         {
           cout << setw(6) << setprecision(2) << array[i][j] << " ";
-          //cout << setw(12) << array[i][j] << " ";
         }
       cout << endl;
     }
     cout << endl;
 }
 
-void array_to_file(const char* filename, double* array, int len)
+void array_to_file (const char* filename, double* array, int len)
 {
     ofstream outfile(filename);
     if (!outfile.is_open()) {
@@ -524,7 +455,6 @@ void show_vect (double* vect, int size, int mode)
 {
   for (int i = 0; i < size; ++i) 
     {
-      //cout << setw(8) << setprecision(3) << vect[i] << "\n";
       cout  << vect[i] << "  ";
       if (mode == 0)
         {
@@ -737,8 +667,8 @@ inline void add_v_to_solve (double* array, int& size, int* index_v)
   add_num_to_array (array, size, 2 * index_v[3] + 1);  
 }
 
-void write_arrays_to_file(const char* filename, double* show_mesh, double* show_w, double* show_theta, 
-                          double* show_moment, double* show_q, int show_count)
+void write_arrays_to_file (const char* filename, double* show_mesh, double* show_w, double* show_theta, 
+                           double* show_moment, double* show_q, int show_count)
 {
     ofstream outfile(filename);
     if (!outfile.is_open()) {
@@ -769,29 +699,15 @@ void make_solution (int show_count, double* show_mesh, double* x_mesh, double* s
       show_mesh[i] = i * show_h;
     }
 
-  int mode = 0;
   int count = 0;
   for (int i = 0; i < L - 1; i++)   // по конечным элементам  [x_mesh[i], x_mesh[i + 1]]
     {
       double h_current = x_mesh[i + 1] - x_mesh[i];
       if (h_current < 1e-10)
         cout << "ДЕЛЕНИЕ НА 0 В make_solution" << endl;
-      
-      if (mode)
-        {
-          cout << "\ni = " << i << "    h = " << h_current << endl;
-        }
 
       while (show_mesh[count] >= x_mesh[i] && show_mesh[count] <= x_mesh[i + 1])
         {
-          if (mode)
-            {
-              cout << setw (10) << fixed << setprecision(6) << "cur = " << show_mesh[count];
-              cout << setw (10) << "       h = " << h_current;
-              cout << setw (10) << "       arg = " << (show_mesh[count] - x_mesh[i]) / h_current;
-              cout << setw (10) << "       y_1 = " << base_function (1, (show_mesh[count] - x_mesh[i]) / h_current, h_current, 0) << "\n";
-            }
-
           // 3 порядок
           w[count] = solve[2 * i] * base_function (1, (show_mesh[count] - x_mesh[i]) / h_current, h_current, 0) +             
                      solve[2 * i + 1] * base_function (2, (show_mesh[count] - x_mesh[i]) / h_current, h_current, 0) +
@@ -823,10 +739,9 @@ void make_solution (int show_count, double* show_mesh, double* x_mesh, double* s
 }
 
 // Функция для поиска совпадений
-void find_indices(double* x_mesh, int mesh_size, double* values, int* found_indices, double tolerance = 1e-6) 
+void find_indices (double* x_mesh, int mesh_size, double* values, int* found_indices, double tolerance = 1e-6) 
 {
   int values_size = 4;
-
     // Проход по массиву значений
   for (int i = 0; i < values_size; ++i) 
     {

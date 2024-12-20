@@ -1,6 +1,24 @@
 #include "head.h"
 using namespace std;
 
+double param_mesh (double* mesh, int size)
+{
+  double h_min = 50;
+  for (int i = 0; i < size - 1; i++)
+    {
+      if (mesh[i + 1] - mesh[i] < h_min)
+        h_min = mesh[i + 1] - mesh[i];
+    }
+  return h_min;  
+}
+
+void print_react (double* react)
+{
+  cout << fixed << setprecision(6);
+  cout <<"МКЭ:     r1: " << setw(10) << react[0] << "  r2: " << setw(10) << react[1] << "  r3: " << setw(10) << react[2] <<
+       "  r_z: " << setw(10) << react[3] << "  m_z: " << setw(10) << react[4] << "\n";
+}
+
 // <============================================MAIN==============================================================>
 
 int main (void)
@@ -10,17 +28,19 @@ int main (void)
   read_data ("data.txt", data);
 
 //--------------------------------------------------------------------------------- создание сетки   
-/* ебло ты утиное */
 
-  int L = 25;             // Матрица A будет размера 2L x 2L.      L - 1 = колво конеч эл.
+  int L = 60;             // Матрица A будет размера 2L x 2L.      L - 1 = колво конеч эл.
   
-  double* x_mesh = new double[L];
-
   int index_v[4];      // x_r1  x_r2  x_r3  x_z / Индексы узлов в глобальном смысле
 
+  double* x_mesh = new double[L];
   if (make_mesh (L, data, x_mesh, index_v))    return -1; 
-  
+
+  //cout << "mesh = ";    show_vect (x_mesh, L, 1);
+
   //double* x_mesh = make_uniform_mesh (L, index_v, 0);
+
+  //cout << "h_min = " << param_mesh (x_mesh, L) << endl;
 
 //---------------------------------------------------------------------------------- выделение памяти под A и F 
 
@@ -42,7 +62,6 @@ int main (void)
             {
               A[2 * k + i][2 * k + j] += a_res (p_def (i+1, j+1), x_mesh[k], x_mesh[k + 1], data[14], data[15], data[0], data[12]);
             }
-
           F[2 * k + i] += f_res (i + 1, x_mesh[k], x_mesh[k + 1], data[9], data[10], data[1], data[2], data[13], data[6], data[11], data[8]);
         }
     }
@@ -51,17 +70,19 @@ int main (void)
 
   double *solve_conju_ = new double[2 * L];    fill (solve_conju_, solve_conju_ + 2 * L, 0.0);
 
-  double react[5];    // r1 r2 r3 r_z m_z   |  последнее число + 2*m = m_z    опытным путем выяснил
+  double react[5];    // r1 r2 r3 r_z m_z  
   
   conjugate_gradient_s_limit (2 * L, A, F, solve_conju_, index_v, react);
   
-  //cout << "x_mesh = ";    show_vect (x_mesh, L, 1);
-  cout << "reactions = ";     show_vect (react, 5, 1);
+  print_react (react);
+
+  //cout << "x_mesh = ";        show_vect (x_mesh, L, 1);
+  //cout << "react_mke = ";       show_vect (react, 5, 1);
   //cout << "solve_limit = ";   show_vect (solve_conju_, 2 * L, 1);
 
   array_to_file("solve.txt", solve_conju_, 2 * L);
 
-//-------------------------------------------------------------------------------------
+//----------метод с удалением строк и столбцов---------------------------------------------------
 /*
   double** A_tmp = new double*[2 * L];                                                   
   for (size_t i = 0; i < 2 * L; i++) { A_tmp[i] = new double[2 * L]; } 
@@ -91,9 +112,13 @@ int main (void)
 
   add_v_to_solve (solve_conju, size_A, index_v);
 
+  cout << "\nsolve_1 = ";   show_vect (solve_conju_, 2 * L, 1);
+  cout << "solve_2 = ";   show_vect (solve_conju, 2 * L, 1);
+  cout << "mesh = ";   show_vect (x_mesh, L, 1);    cout << "\n";
+
   auto l2_norm = [](double* a, double*b, int size) {double res = 0.0;   for (size_t i = 0; i < size; i++) res +=  pow (a[i] - b[i], 2); return sqrt (res); };
 
-  cout << "Conju_grad_2_ways: l2_norm = " << l2_norm (solve_conju, solve_conju_, 2 * L) << endl;
+  //cout << "Conju_grad_2_ways: l2_norm = " << l2_norm (solve_conju, solve_conju_, 2 * L) << endl;
 */
 //-----------------------------------------------СЕТКА ДЛЯ ГРАФИКИ----------------------------------------
 
